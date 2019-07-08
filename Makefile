@@ -14,7 +14,7 @@ vet:
 	@$(GO) vet -v -shadow $(pkgs)
 
 cyclomatic-check:
-	@report=`$(GOCYCLO) -over 15 cmd pkg`; if [ -n "$$report" ]; then echo "Complexity is over 15 in"; echo $$report; exit 1; fi
+	@report=`$(GOCYCLO) -over 20 cmd pkg`; if [ -n "$$report" ]; then echo "Complexity is over 20 in"; echo $$report; exit 1; fi
 
 test:
 ifndef WHAT
