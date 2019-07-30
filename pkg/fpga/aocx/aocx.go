@@ -71,6 +71,45 @@ func (f *File) Close() error {
 	return err
 }
 
+func setSection(f *File, section *elf.Section) error {
+	name := section.SectionHeader.Name
+	if name == ".acl.fpga.bin" {
+		data, err := section.Data()
+		if err != nil {
+			return errors.Wrap(err, "unable to read .acl.fpga.bin")
+		}
+		f.GBS, err = parseFpgaBin(data)
+		if err != nil {
+			return errors.Wrap(err, "unable to parse gbs")
+		}
+		return nil
+	}
+
+	fieldMap := map[string]*string{
+		".acl.autodiscovery":       &f.AutoDiscovery,
+		".acl.autodiscovery.xml":   &f.AutoDiscoveryXML,
+		".acl.board":               &f.Board,
+		".acl.board_package":       &f.BoardPackage,
+		".acl.board_spec.xml":      &f.BoardSpecXML,
+		".acl.compilation_env":     &f.CompilationEnvironment,
+		".acl.rand_hash":           &f.Hash,
+		".acl.kernel_arg_info.xml": &f.KernelArgInfoXML,
+		".acl.quartus_input_hash":  &f.QuartusInputHash,
+		".acl.quartus_report":      &f.QuartusReport,
+		".acl.target":              &f.Target,
+		".acl.version":             &f.Version,
+	}
+
+	if field, ok := fieldMap[name]; ok {
+		data, err := section.Data()
+		if err != nil {
+			return errors.Wrapf(err, "%s: unable to get section data", name)
+		}
+		*field = string(data)
+	}
+	return nil
+}
+
 // NewFile creates a new File for accessing an ELF binary in an underlying reader.
 // The ELF binary is expected to start at position 0 in the ReaderAt.
 func NewFile(r io.ReaderAt) (*File, error) {
@@ -79,41 +118,10 @@ func NewFile(r io.ReaderAt) (*File, error) {
 		return nil, errors.Wrap(err, "unable to read header")
 	}
 	f := new(File)
-	for _, v := range el.Sections {
-		switch v.SectionHeader.Name {
-		case ".acl.autodiscovery":
-			f.AutoDiscovery = dataToString(v.Data())
-		case ".acl.autodiscovery.xml":
-			f.AutoDiscoveryXML = dataToString(v.Data())
-		case ".acl.board":
-			f.Board = dataToString(v.Data())
-		case ".acl.board_package":
-			f.BoardPackage = dataToString(v.Data())
-		case ".acl.board_spec.xml":
-			f.BoardSpecXML = dataToString(v.Data())
-		case ".acl.compilation_env":
-			f.CompilationEnvironment = dataToString(v.Data())
-		case ".acl.rand_hash":
-			f.Hash = dataToString(v.Data())
-		case ".acl.kernel_arg_info.xml":
-			f.KernelArgInfoXML = dataToString(v.Data())
-		case ".acl.quartus_input_hash":
-			f.QuartusInputHash = dataToString(v.Data())
-		case ".acl.quartus_report":
-			f.QuartusReport = dataToString(v.Data())
-		case ".acl.target":
-			f.Target = dataToString(v.Data())
-		case ".acl.version":
-			f.Version = dataToString(v.Data())
-		case ".acl.fpga.bin":
-			d, err := v.Data()
-			if err != nil {
-				return nil, errors.Wrap(err, "unable to read .acl.fpga.bin")
-			}
-			f.GBS, err = parseFpgaBin(d)
-			if err != nil {
-				return nil, errors.Wrap(err, "unable to parse gbs")
-			}
+	for _, section := range el.Sections {
+		err = setSection(f, section)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return f, nil
@@ -134,11 +142,4 @@ func parseFpgaBin(d []byte) (*gbs.File, error) {
 		return nil, errors.Wrap(err, "unable to uncompress .acl.gbs.gz")
 	}
 	return gbs.NewFile(bytes.NewReader(b))
-}
-
-func dataToString(b []byte, err error) string {
-	if err != nil {
-		return ""
-	}
-	return string(b)
 }
