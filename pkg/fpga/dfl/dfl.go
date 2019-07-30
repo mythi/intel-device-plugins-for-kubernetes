@@ -25,12 +25,15 @@ const (
 	// #define DFL_FME_BASE 0x80
 
 	// * Common IOCTLs for both FME and AFU file descriptor *
-	// **
+
+	// FPGAGetAPIVersion IOCTL
 	// * DFL_FPGA_GET_API_VERSION - _IO(DFL_FPGA_MAGIC, DFL_FPGA_BASE + 0)
 	// *
 	// * Report the version of the driver API.
 	// * Return: Driver API Version.
 	FPGAGetAPIVersion = 0xB600
+
+	// FPGACheckExtension IOCTL
 	// * DFL_FPGA_CHECK_EXTENSION - _IO(DFL_FPGA_MAGIC, DFL_FPGA_BASE + 1)
 	// *
 	// * Check whether an extension is supported.
@@ -39,6 +42,7 @@ const (
 
 	// IOCTLs for AFU file descriptor
 
+	// FPGAPortReset IOCTL
 	// * DFL_FPGA_PORT_RESET - _IO(DFL_FPGA_MAGIC, DFL_PORT_BASE + 0)
 	// *
 	// * Reset the FPGA Port and its AFU. No parameters are supported.
@@ -47,6 +51,8 @@ const (
 	// * (e.g. DMA or PR operation failure) and be recoverable from the failure.
 	// * Return: 0 on success, -errno of failure
 	FPGAPortReset = 0xB640
+
+	// FPGAPortGetInfo IOCTL
 	// * DFL_FPGA_PORT_GET_INFO - _IOR(DFL_FPGA_MAGIC, DFL_PORT_BASE + 1,
 	// *						struct dfl_fpga_port_info)
 	// *
@@ -54,6 +60,8 @@ const (
 	// * Driver fills the info in provided struct dfl_fpga_port_info.
 	// * Return: 0 on success, -errno on failure.
 	FPGAPortGetInfo = 0xB641
+
+	// FPGAPortGetRegionInfo IOCTL
 	// * FPGA_PORT_GET_REGION_INFO - _IOWR(FPGA_MAGIC, PORT_BASE + 2,
 	// *					struct dfl_fpga_port_region_info)
 	// *
@@ -62,6 +70,8 @@ const (
 	// * Driver returns the region info in other fields.
 	// * Return: 0 on success, -errno on failure.
 	FPGAPortGetRegionInfo = 0xB642
+
+	// FPGAPortDMAMap IOCTL
 	// * DFL_FPGA_PORT_DMA_MAP - _IOWR(DFL_FPGA_MAGIC, DFL_PORT_BASE + 3,
 	// *						struct dfl_fpga_port_dma_map)
 	// *
@@ -70,6 +80,8 @@ const (
 	// * This interface only accepts page-size aligned user memory for dma mapping.
 	// * Return: 0 on success, -errno on failure.
 	FPGAPortDMAMap = 0xB643
+
+	// FPGAPortDMAUnmap IOCTL
 	// * DFL_FPGA_PORT_DMA_UNMAP - _IOW(FPGA_MAGIC, PORT_BASE + 4,
 	// *						struct dfl_fpga_port_dma_unmap)
 	// *
@@ -79,6 +91,7 @@ const (
 
 	// IOCTLs for FME file descriptor
 
+	// FPGAFMEPortPR IOCTL
 	//  * DFL_FPGA_FME_PORT_PR - _IOW(DFL_FPGA_MAGIC, DFL_FME_BASE + 0,
 	//  *						struct dfl_fpga_fme_port_pr)
 	//  *
@@ -106,8 +119,6 @@ type dflFPGAPortInfo struct {
 	NumRegions uint32 // Output: The number of supported regions
 	NumUmsgs   uint32 // Output: The number of allocated umsgs
 }
-
-const ()
 
 type dflFPGAPortRegionInfo struct {
 	Argsz   uint32 // Input: Structure length
