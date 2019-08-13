@@ -28,8 +28,6 @@ const (
 	dflDeviceRE = `^region[0-9]+$`
 	dflPortRE   = `^dfl-port\.[0-9]+$`
 	dflFmeRE    = `^dfl-fme\.[0-9]+$`
-	//dflRegionRE = `^region[0-9]+$`
-	//dflFmeRegionRE = `^dfl-fme-region\.[0-9]+$`
 )
 
 // getDFLRegion reads FME interface id from /sys/fpga/fpga_region/regionX/dfl-fme.k/dfl-fme-region.n/fpga_region/regionN/compat_id
