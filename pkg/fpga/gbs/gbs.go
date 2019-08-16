@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -113,13 +114,26 @@ func Open(name string) (*File, error) {
 // Close closes the File.
 // If the File was created using NewFile directly instead of Open,
 // Close has no effect.
-func (f *File) Close() error {
-	var err error
+func (f *File) Close() (err error) {
 	if f.closer != nil {
 		err = f.closer.Close()
 		f.closer = nil
 	}
-	return err
+	return
+}
+
+// InterfaceUUID returns normalized Metadata.AfuImage.InterfaceUUID
+func (f *File) InterfaceUUID() string {
+	return strings.ToLower(strings.Replace(f.Metadata.AfuImage.InterfaceUUID, "-", "", -1))
+}
+
+// AcceleratorTypeUUID returns list of normalized AFU UUID from the metadata.
+// Empty string returned in case of errors in Metadata
+func (f *File) AcceleratorTypeUUID() (ret string) {
+	if len(f.Metadata.AfuImage.AcceleratorClusters) == 1 {
+		ret = strings.ToLower(strings.Replace(f.Metadata.AfuImage.AcceleratorClusters[0].AcceleratorTypeUUID, "-", "", -1))
+	}
+	return
 }
 
 // We need both Seek and ReadAt
@@ -142,15 +156,18 @@ func NewFile(r bitstreamReader) (*File, error) {
 	}
 	// 2. Validate Magic/GUIDs
 	if f.GUID1 != bitstreamGUID1 || f.GUID2 != bitstreamGUID2 {
-		return nil, errors.Errorf("Wrong magic in GBS file: %#x %#x Expected %#x %#x", f.GUID1, f.GUID2, bitstreamGUID1, bitstreamGUID2)
+		return nil, errors.Errorf("wrong magic in GBS file: %#x %#x Expected %#x %#x", f.GUID1, f.GUID2, bitstreamGUID1, bitstreamGUID2)
 	}
 	// 3. Read/unmarshal metadata JSON
 	if f.MetadataLength == 0 || f.MetadataLength >= 4096 {
-		return nil, errors.Errorf("Incorrect length of GBS metadata %d", f.MetadataLength)
+		return nil, errors.Errorf("incorrect length of GBS metadata %d", f.MetadataLength)
 	}
 	dec := json.NewDecoder(io.NewSectionReader(r, fileHeaderLength, int64(f.MetadataLength)))
 	if err := dec.Decode(&f.Metadata); err != nil {
 		return nil, errors.Wrap(err, "unable to parse GBS metadata")
+	}
+	if afus := len(f.Metadata.AfuImage.AcceleratorClusters); afus != 1 {
+		return nil, errors.Errorf("incorect length of AcceleratorClusters in GBS metadata: %d", afus)
 	}
 	// 4. Create bitsream struct
 	b := new(Bitstream)

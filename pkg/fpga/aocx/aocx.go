@@ -26,6 +26,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// OpenCLUUID is a special AFU UUID that is used for all OpenCL BSP based FPGA bitstreams
+const OpenCLUUID = "18b79ffa2ee54aa096ef4230dafacb5f"
+
 // A File represents an open GBS file.
 type File struct {
 	AutoDiscovery          string
@@ -62,13 +65,12 @@ func Open(name string) (*File, error) {
 // Close closes the File.
 // If the File was created using NewFile directly instead of Open,
 // Close has no effect.
-func (f *File) Close() error {
-	var err error
+func (f *File) Close() (err error) {
 	if f.closer != nil {
 		err = f.closer.Close()
 		f.closer = nil
 	}
-	return err
+	return
 }
 
 func setSection(f *File, section *elf.Section) error {
@@ -141,5 +143,13 @@ func parseFpgaBin(d []byte) (*gbs.File, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to uncompress .acl.gbs.gz")
 	}
-	return gbs.NewFile(bytes.NewReader(b))
+	g, err := gbs.NewFile(bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	if afuUUID := g.AcceleratorTypeUUID(); afuUUID != OpenCLUUID {
+		g.Close()
+		return nil, errors.Errorf("incorrect OpenCL BSP AFU UUID (%s)", afuUUID)
+	}
+	return g, nil
 }

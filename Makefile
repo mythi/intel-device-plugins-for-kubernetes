@@ -11,7 +11,7 @@ format:
 	@report=`$(GOFMT) -s -d -w $$(find cmd pkg -name \*.go)` ; if [ -n "$$report" ]; then echo "$$report"; exit 1; fi
 
 vet:
-	@$(GO) vet -v -shadow $(pkgs)
+	@$(GO) vet -v $(pkgs)
 
 cyclomatic-check:
 	@report=`$(GOCYCLO) -over 15 cmd pkg`; if [ -n "$$report" ]; then echo "Complexity is over 20 in"; echo $$report; exit 1; fi
