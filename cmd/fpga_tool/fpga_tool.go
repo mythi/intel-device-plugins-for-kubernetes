@@ -17,7 +17,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
+	"strconv"
 
 	// "io/ioutil"
 
@@ -30,36 +34,47 @@ import (
 	fpga "github.com/intel/intel-device-plugins-for-kubernetes/pkg/fpga/linux"
 )
 
+const (
+	fpgaBitStreamDirectory = "/srv/intel.com/fpga"
+)
+
 func main() {
 	var err error
+	var bitstream string
+	var device string
+	var dryRun bool
+	flag.StringVar(&bitstream, "b", "", "Path to bitstream file (GBS or AOCX)")
+	flag.StringVar(&device, "d", "", "Path to device node (FME or Port)")
+	flag.BoolVar(&dryRun, "dry-run", false, "Don't write/program, just validate and log")
 
 	flag.Parse()
 
 	if flag.NArg() < 1 {
-		log.Fatal("Please provide filename")
+		log.Fatal("Please provide command: info, fpgainfo, fmeinfo, portinfo, install, pr")
 	}
 
-	fname := flag.Arg(0)
+	cmd := flag.Arg(0)
+	err = validateFlags(cmd, bitstream, device)
+	if err != nil {
+		log.Fatalf("Invalid arguments: %+v", err)
+	}
 
-	switch {
-	case strings.HasSuffix(fname, ".gbs"):
-		gbsInfo(fname)
-	case strings.HasSuffix(fname, ".aocx"):
-		aocxInfo(fname)
-	case strings.HasPrefix(fname, "/dev/dfl-fme."), strings.HasPrefix(fname, "/dev/intel-fpga-fme."):
-		fmeInfo(fname)
-	case strings.HasPrefix(fname, "/dev/dfl-port."), strings.HasPrefix(fname, "/dev/intel-fpga-port."):
-		portInfo(fname)
-	case fname == "pr":
-		if flag.NArg() < 3 {
-			log.Fatal("pr fme gbs")
-		}
-		fme := flag.Arg(1)
-		bs := flag.Arg(2)
-		doPR(fme, bs)
-
+	// fmt.Printf("Cmd: %q\nBitstream: %q\nDevice: %q\n", cmd, bitstream, device)
+	switch cmd {
+	case "info":
+		err = printBitstreamInfo(bitstream)
+	case "pr":
+		err = doPR(device, bitstream, dryRun)
+	case "fpgainfo":
+		err = fpgaInfo(device)
+	case "fmeinfo":
+		err = fmeInfo(device)
+	case "portinfo":
+		err = portInfo(device)
+	case "install":
+		err = installBitstream(bitstream, dryRun)
 	default:
-		err = errors.Errorf("unknown arguments %+v", flag.Args())
+		err = errors.Errorf("unknown command %+v", flag.Args())
 
 	}
 	if err != nil {
@@ -67,51 +82,151 @@ func main() {
 	}
 }
 
-func gbsInfo(fname string) {
+func validateFlags(cmd, bitstream, device string) error {
+	switch cmd {
+	case "info", "install":
+		// bitstream must not be empty
+		if bitstream == "" {
+			return errors.Errorf("bitstream filename is missing")
+		}
+	case "fpgainfo", "fmeinfo", "portinfo":
+		// device must not be empty
+		if device == "" {
+			return errors.Errorf("FPGA device name is missing")
+		}
+	case "pr":
+		// device and bitstream can't be empty
+		if bitstream == "" {
+			return errors.Errorf("bitstream filename is missing")
+		}
+		if device == "" {
+			return errors.Errorf("FPGA device name is missing")
+		}
+	}
+	return nil
+}
+
+type bitstreamInfo struct {
+	InterfaceUUID       string
+	AcceleratorTypeUUID string
+	InstallPath         string
+	Extra               map[string]string
+}
+
+func installBitstream(fname string, dryRun bool) (err error) {
+	var info *bitstreamInfo
+	switch filepath.Ext(fname) {
+	case ".gbs":
+		info, err = gbsInfo(fname)
+	case ".aocx":
+		info, err = aocxInfo(fname)
+	default:
+		err = errors.Errorf("unknown file format of file %s", fname)
+	}
+	if err != nil {
+		return
+	}
+	fmt.Printf("Installing bitstream %q as %q\n", fname, info.InstallPath)
+	if dryRun {
+		fmt.Println("Dry-run: no copying performed")
+		return
+	}
+	err = os.MkdirAll(filepath.Dir(info.InstallPath), 0755)
+	if err != nil {
+		return errors.Wrap(err, "unable to create destination directory")
+	}
+	src, err := os.Open(fname)
+	if err != nil {
+		return errors.Wrap(err, "can't open bitstream file")
+	}
+	defer src.Close()
+	dst, err := os.OpenFile(info.InstallPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return errors.Wrap(err, "can't create destination file")
+	}
+	defer dst.Close()
+	_, err = io.Copy(dst, src)
+	return
+}
+
+func fpgaInfo(fname string) error {
+	switch {
+	case strings.HasPrefix(fname, "/dev/dfl-fme."), strings.HasPrefix(fname, "/dev/intel-fpga-fme."):
+		return fmeInfo(fname)
+	case strings.HasPrefix(fname, "/dev/dfl-port."), strings.HasPrefix(fname, "/dev/intel-fpga-port."):
+		return portInfo(fname)
+	}
+	return errors.Errorf("unknown FPGA device file %s", fname)
+}
+
+func printBitstreamInfo(fname string) (err error) {
+	var info *bitstreamInfo
+	switch filepath.Ext(fname) {
+	case ".gbs":
+		info, err = gbsInfo(fname)
+	case ".aocx":
+		info, err = aocxInfo(fname)
+	default:
+		err = errors.Errorf("unknown file format of file %s", fname)
+	}
+	if err != nil {
+		return
+	}
+	fmt.Printf("Bitstream file        : %q\n", fname)
+	fmt.Printf("Interface UUID        : %q\n", info.InterfaceUUID)
+	fmt.Printf("Accelerator Type UUID : %q\n", info.AcceleratorTypeUUID)
+	fmt.Printf("Installation Path     : %q\n", info.InstallPath)
+	if len(info.Extra) > 0 {
+		fmt.Println("Extra:")
+		for k, v := range info.Extra {
+			fmt.Printf("\t%s : %q\n", k, v)
+		}
+	}
+	return
+}
+
+func gbsInfo(fname string) (info *bitstreamInfo, err error) {
 	m, err := gbs.Open(fname)
 	if err != nil {
-		log.Fatalf("%+v", err)
+		return
 	}
 	defer m.Close()
 
-	// fmt.Printf("Return:\n%+v\n", m)
-	fmt.Printf("GBS InterfaceID: %s AFU UUID: %+v Size: %d\n", m.InterfaceUUID(), m.AcceleratorTypeUUID(), m.Bitstream.Size)
-
-	// if m.Bitstream != nil {
-	// 	fmt.Printf("Bitstream: %+v\n", m.Bitstream)
-	// 	// r, err := m.Bitstream.Data()
-	// 	// if err != nil {
-	// 	// 	log.Fatalf("%+v", err)
-	// 	// }
-	// 	// ioutil.WriteFile(flag.Arg(0)+".rbf", r, 0644)
-	// 	// f, err := os.OpenFile(fname+".rbf", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	// 	// if err != nil {
-	// 	// 	log.Fatalf("%+v", err)
-	// 	// }
-	// 	// defer f.Close()
-	// 	// wr, err := io.Copy(f, m.Bitstream.Open())
-	// 	// if err != nil {
-	// 	// 	log.Fatalf("%+v", err)
-	// 	// }
-	// 	// fmt.Printf("Written %d bytes\n", wr)
-	// }
+	info = &bitstreamInfo{
+		InterfaceUUID:       m.InterfaceUUID(),
+		AcceleratorTypeUUID: m.AcceleratorTypeUUID(),
+		InstallPath:         filepath.Join(fpgaBitStreamDirectory, m.InterfaceUUID(), m.AcceleratorTypeUUID()+filepath.Ext(fname)),
+		Extra:               map[string]string{"Size": strconv.FormatUint(m.Bitstream.Size, 10)},
+	}
+	return
 }
 
-func aocxInfo(fname string) {
+func aocxInfo(fname string) (info *bitstreamInfo, err error) {
 	m, err := aocx.Open(fname)
 	if err != nil {
-		log.Fatalf("%+v", err)
+		return
 	}
 	defer m.Close()
-	// fmt.Printf("Return:\n%+v\n", m)
-	fmt.Printf("AOCX Info:\nBoard: %s\nTarget: %s\nHash: %s\nVersion: %s\n", m.Board, m.Target, m.Hash, m.Version)
+
 	if m.GBS != nil {
-		// fmt.Printf("GBS: %+v\n", m.GBS)
-		fmt.Printf("GBS InterfaceID: %s AFU UUID: %+v Hash: %s Size: %d\n", m.GBS.InterfaceUUID(), m.GBS.AcceleratorTypeUUID(), m.Hash, m.GBS.Bitstream.Size)
+		info = &bitstreamInfo{
+			InterfaceUUID:       m.GBS.InterfaceUUID(),
+			AcceleratorTypeUUID: m.GBS.AcceleratorTypeUUID(),
+			InstallPath:         filepath.Join(fpgaBitStreamDirectory, m.GBS.InterfaceUUID(), m.Hash+filepath.Ext(fname)),
+			Extra: map[string]string{
+				"Board":   m.Board,
+				"Target":  m.Target,
+				"Hash":    m.Hash,
+				"Version": m.Version,
+				"Size":    strconv.FormatUint(m.GBS.Bitstream.Size, 10),
+			},
+		}
+		return
 	}
+	return nil, errors.Errorf("can't read GBS from AOCX file")
 }
 
-func fmeInfo(fname string) {
+func fmeInfo(fname string) error {
 	var f fpga.FpgaFME
 	var err error
 	switch {
@@ -119,18 +234,21 @@ func fmeInfo(fname string) {
 		f, err = fpga.NewDflFME(fname)
 	case strings.HasPrefix(fname, "/dev/intel-fpga-fme."):
 		f, err = fpga.NewIntelFpgaFME(fname)
+	default:
+		return errors.Errorf("unknow type of FME %s", fname)
 	}
 	if err != nil {
-		log.Fatalf("%+v", err)
+		return err
 	}
 	defer f.Close()
 	fmt.Print("API:")
 	fmt.Println(f.GetAPIVersion())
 	fmt.Print("CheckExtension:")
 	fmt.Println(f.CheckExtension())
+	return nil
 }
 
-func portInfo(fname string) {
+func portInfo(fname string) error {
 	var f fpga.FpgaPort
 	var err error
 	switch {
@@ -138,9 +256,11 @@ func portInfo(fname string) {
 		f, err = fpga.NewDflPort(fname)
 	case strings.HasPrefix(fname, "/dev/intel-fpga-port."):
 		f, err = fpga.NewIntelFpgaPort(fname)
+	default:
+		err = errors.Errorf("unknown type of port %s", fname)
 	}
 	if err != nil {
-		log.Fatalf("%+v", err)
+		return err
 	}
 	defer f.Close()
 	fmt.Print("API:")
@@ -158,9 +278,10 @@ func portInfo(fname string) {
 			fmt.Println(f.PortGetRegionInfo(uint32(idx)))
 		}
 	}
+	return nil
 }
 
-func doPR(fme, bs string) {
+func doPR(fme, bs string, dryRun bool) error {
 	var f fpga.FpgaFME
 	var err error
 	switch {
@@ -169,27 +290,32 @@ func doPR(fme, bs string) {
 	case strings.HasPrefix(fme, "/dev/intel-fpga-fme."):
 		f, err = fpga.NewIntelFpgaFME(fme)
 	default:
-		log.Fatalf("unknown FME")
+		return errors.Errorf("unknown FME %s", fme)
 	}
 	fmt.Printf("Trying to program %s to port 0 of %s", bs, fme)
 	if err != nil {
-		log.Fatalf("%+v", err)
+		return err
 	}
 	defer f.Close()
 	fmt.Print("API:")
 	fmt.Println(f.GetAPIVersion())
 	m, err := gbs.Open(bs)
 	if err != nil {
-		log.Fatalf("%+v", err)
+		return err
 	}
 	defer m.Close()
 	// fmt.Printf("Return:\n%+v\n", m)
 	if m.Bitstream != nil {
 		rawBistream, err := m.Bitstream.Data()
 		if err != nil {
-			log.Fatalf("%+v", err)
+			return err
+		}
+		if dryRun {
+			fmt.Println("Dry-Run: Skipping actual programming")
+			return nil
 		}
 		fmt.Print("Trying to PR, brace yourself! :")
 		fmt.Println(f.PortPR(0, rawBistream))
 	}
+	return nil
 }
