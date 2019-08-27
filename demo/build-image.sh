@@ -14,14 +14,15 @@ if [ ! -d "$IMG" ]; then
 fi
 
 CWD=`dirname $0`
-TAG=`git rev-parse HEAD`
+TAG=${TAG:-devel}
+SRCREV=$(git rev-parse HEAD)
 
 if [ -z "$BUILDER" -o "$BUILDER" = 'docker' ] ; then
     docker build --rm -t ${IMG}:${TAG} "$CWD/$IMG/"
-    docker tag ${IMG}:${TAG} ${IMG}:devel
+    docker tag ${IMG}:${TAG} ${IMG}:${SRCREV}
 elif [ "$BUILDER" = 'buildah' ] ; then
     buildah bud -t ${IMG}:${TAG} "$CWD/$IMG/"
-    buildah tag ${IMG}:${TAG} ${IMG}:devel
+    buildah tag ${IMG}:${TAG} ${IMG}:${SRCREV}
 else
     (>&2 echo "Unknown builder $BUILDER")
     exit 1

@@ -15,14 +15,15 @@ if [ ! -e "${DOCKERFILE}" ]; then
     exit 1
 fi
 
-TAG=$(git rev-parse HEAD)
+TAG=${TAG:-devel}
+SRCREV=$(git rev-parse HEAD)
 
 if [ -z "${BUILDER}" -o "${BUILDER}" = 'docker' ] ; then
     docker build --pull -t ${IMG}:${TAG} -f ${DOCKERFILE} .
-    docker tag ${IMG}:${TAG} ${IMG}:devel
+    docker tag ${IMG}:${TAG} ${IMG}:${SRCREV}
 elif [ "${BUILDER}" = 'buildah' ] ; then
     buildah bud --pull-always -t ${IMG}:${TAG} -f ${DOCKERFILE} .
-    buildah tag ${IMG}:${TAG} ${IMG}:devel
+    buildah tag ${IMG}:${TAG} ${IMG}:${SRCREV}
 else
     (>&2 echo "Unknown builder ${BUILDER}")
     exit 1

@@ -41,7 +41,8 @@ build: $(cmds)
 clean:
 	@for cmd in $(cmds) ; do pwd=$(shell pwd) ; cd cmd/$$cmd ; $(GO) clean ; cd $$pwd ; done
 
-TAG?=$(shell git rev-parse HEAD)
+TAG?=devel
+export TAG
 
 images = $(shell ls build/docker/*.Dockerfile | sed 's/.*\/\(.\+\)\.Dockerfile/\1/')
 
