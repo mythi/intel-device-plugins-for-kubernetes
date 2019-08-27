@@ -3,7 +3,7 @@
 IMG=$1
 BUILDER=$2
 
-DOCKERFILE="$(dirname $0)/${IMG}.Dockerfile"
+DOCKERFILE="$(dirname $0)/$(basename ${IMG}).Dockerfile"
 
 if [ -z "$IMG" ]; then
     (>&2 echo "Usage: $0 <Dockerfile>")
