@@ -19,10 +19,10 @@ TAG=${TAG:-devel}
 SRCREV=$(git rev-parse HEAD)
 
 if [ -z "$BUILDER" -o "$BUILDER" = 'docker' ] ; then
-    docker build --rm -t ${IMG}:${TAG} "$CWD/$DIR/"
+    docker build --pull -t ${IMG}:${TAG} "$CWD/$DIR/"
     docker tag ${IMG}:${TAG} ${IMG}:${SRCREV}
 elif [ "$BUILDER" = 'buildah' ] ; then
-    buildah bud -t ${IMG}:${TAG} "$CWD/$DIR/"
+    buildah bud  --pull-always -t ${IMG}:${TAG} "$CWD/$DIR/"
     buildah tag ${IMG}:${TAG} ${IMG}:${SRCREV}
 else
     (>&2 echo "Unknown builder $BUILDER")
