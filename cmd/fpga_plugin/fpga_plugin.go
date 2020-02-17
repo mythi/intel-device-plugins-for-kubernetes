@@ -24,12 +24,7 @@ import (
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
-	utilnode "k8s.io/kubernetes/pkg/util/node"
 
 	"github.com/intel/intel-device-plugins-for-kubernetes/pkg/debug"
 	dpapi "github.com/intel/intel-device-plugins-for-kubernetes/pkg/deviceplugin"
@@ -351,8 +346,6 @@ func main() {
 	var mode string
 	var kubeconfig string
 	var master string
-	var config *rest.Config
-	var err error
 	var debugEnabled bool
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
@@ -366,34 +359,9 @@ func main() {
 		debug.Activate()
 	}
 
-	if kubeconfig == "" {
-		config, err = rest.InClusterConfig()
-	} else {
-		config, err = clientcmd.BuildConfigFromFlags(master, kubeconfig)
-	}
+	mode, err := getModeOverrideFromCluster(kubeconfig, master, mode)
 	if err != nil {
-		fatal(err)
-	}
-
-	// if NODE_NAME is not set then try to use hostname
-	nodeName, err := utilnode.GetHostname(os.Getenv("NODE_NAME"))
-	if err != nil {
-		fatal(err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		fatal(err)
-	}
-
-	node, err := clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
-	if err != nil {
-		fatal(err)
-	}
-
-	if nodeMode, ok := node.ObjectMeta.Annotations["fpga.intel.com/device-plugin-mode"]; ok {
-		fmt.Println("Overriding mode to ", nodeMode)
-		mode = nodeMode
+		fmt.Printf("WARNING: failed to get mode override from cluster: %+v\n", err)
 	}
 
 	plugin, err := newDevicePlugin(mode)
