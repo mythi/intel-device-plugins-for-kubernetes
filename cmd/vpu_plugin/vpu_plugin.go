@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/gousb"
@@ -30,20 +31,23 @@ import (
 const (
 	// Movidius MyriadX Vendor ID
 	vendorID = 0x03e7
+	// Movidius MyriadX Product ID
+	productID = 0xf63b
 	// Device plugin settings.
-	namespace  = "vpu.intel.com"
-	deviceType = "hddl"
+	namespace        = "vpu.intel.com"
+	deviceType       = "hddl"
+	daemonDeviceType = "hddldaemon"
 
-	hddlSockPath     = "/var/tmp/hddl_service.sock"
-	hddlServicePath1 = "/var/tmp/hddl_service_ready.mutex"
-	hddlServicePath2 = "/var/tmp/hddl_service_alive.mutex"
-	ionDevNode       = "/dev/ion"
+	hddlContainerPath = "/var/tmp"
+	hddlServiceSock   = "hddl_service.sock"
+	hddlServiceReady  = "hddl_service_ready.mutex"
+	hddlServiceAlive  = "hddl_service_alive.mutex"
+	ionDevNode        = "/dev/ion"
+	myriadDevNode     = "/dev/myriad"
 )
 
 var (
 	isdebug = flag.Int("debug", 0, "debug level (0..1)")
-	// Movidius MyriadX Product IDs
-	productIDs = []int{0x2485, 0xf63b}
 )
 
 type gousbContext interface {
@@ -53,16 +57,18 @@ type gousbContext interface {
 type devicePlugin struct {
 	usbContext   gousbContext
 	vendorID     int
-	productIDs   []int
+	productID    int
 	sharedDevNum int
+	hddlHostPath string
 }
 
-func newDevicePlugin(usbContext gousbContext, vendorID int, productIDs []int, sharedDevNum int) *devicePlugin {
+func newDevicePlugin(usbContext gousbContext, vendorID int, productID int, sharedDevNum int, hddlHostPath string) *devicePlugin {
 	return &devicePlugin{
 		usbContext:   usbContext,
 		vendorID:     vendorID,
-		productIDs:   productIDs,
+		productID:    productID,
 		sharedDevNum: sharedDevNum,
+		hddlHostPath: hddlHostPath,
 	}
 }
 
@@ -90,26 +96,26 @@ func fileExists(filename string) bool {
 
 func (dp *devicePlugin) scan() (dpapi.DeviceTree, error) {
 	var nUsb int
+	needsDaemon := false
 	devTree := dpapi.NewDeviceTree()
 
 	// first check if HDDL sock is there
-	if !fileExists(hddlSockPath) {
-		return devTree, nil
+	if !fileExists(filepath.Join(dp.hddlHostPath, hddlServiceSock)) {
+		needsDaemon = true
 	}
 
 	devs, err := dp.usbContext.OpenDevices(func(desc *gousb.DeviceDesc) bool {
 		thisVendor := desc.Vendor
 		thisProduct := desc.Product
-		for _, v := range dp.productIDs {
-			debug.Printf("checking %04x,%04x vs %s,%s", dp.vendorID, v, thisVendor.String(), thisProduct.String())
-			if (gousb.ID(dp.vendorID) == thisVendor) && (gousb.ID(v) == thisProduct) {
-				nUsb++
-			}
+		debug.Printf("checking %04x,%04x vs %s,%s", dp.vendorID, dp.productID, thisVendor.String(), thisProduct.String())
+		if (gousb.ID(dp.vendorID) == thisVendor) && (gousb.ID(dp.productID) == thisProduct) {
+			nUsb++
 		}
 		return false
 	})
 	defer func() {
 		for _, d := range devs {
+			// TODO(mythi): close in parallel?
 			d.Close()
 		}
 	}()
@@ -117,8 +123,13 @@ func (dp *devicePlugin) scan() (dpapi.DeviceTree, error) {
 	if err != nil {
 		debug.Printf("list usb device %s", err)
 	}
+	if nUsb == 0 {
+		return devTree, nil
+	}
 
-	if nUsb > 0 {
+	debug.Printf("found %d devices, needsDaemon: %+v", nUsb, needsDaemon)
+
+	if !needsDaemon {
 		for i := 0; i < nUsb*dp.sharedDevNum; i++ {
 			devID := fmt.Sprintf("hddl_service-%d", i)
 			// HDDL use a unix socket as service provider to manage /dev/myriad[n]
@@ -133,20 +144,46 @@ func (dp *devicePlugin) scan() (dpapi.DeviceTree, error) {
 
 			mounts := []pluginapi.Mount{
 				{
-					HostPath:      hddlSockPath,
-					ContainerPath: hddlSockPath,
+					HostPath:      filepath.Join(dp.hddlHostPath, hddlServiceSock),
+					ContainerPath: filepath.Join(hddlContainerPath, hddlServiceSock),
 				},
 				{
-					HostPath:      hddlServicePath1,
-					ContainerPath: hddlServicePath1,
+					HostPath:      filepath.Join(dp.hddlHostPath, hddlServiceAlive),
+					ContainerPath: filepath.Join(hddlContainerPath, hddlServiceAlive),
 				},
 				{
-					HostPath:      hddlServicePath2,
-					ContainerPath: hddlServicePath2,
+					HostPath:      filepath.Join(dp.hddlHostPath, hddlServiceReady),
+					ContainerPath: filepath.Join(hddlContainerPath, hddlServiceReady),
 				},
 			}
 			devTree.AddDevice(deviceType, devID, dpapi.NewDeviceInfo(pluginapi.Healthy, nodes, mounts, nil))
 		}
+	} else {
+		var nodes []pluginapi.DeviceSpec
+		for i := 0; i < nUsb; i++ {
+			nodes = append(nodes, pluginapi.DeviceSpec{
+				HostPath:      fmt.Sprintf("%s%d", myriadDevNode, i),
+				ContainerPath: fmt.Sprintf("%s%d", myriadDevNode, i),
+				Permissions:   "rw",
+			})
+		}
+		// TODO(mythi): hddldaemon may want to run bsl_reset?
+		nodes = append(nodes, pluginapi.DeviceSpec{
+			HostPath:      ionDevNode,
+			ContainerPath: ionDevNode,
+			Permissions:   "rw",
+		})
+		mounts := []pluginapi.Mount{
+			{
+				HostPath:      "/dev/bus/usb",
+				ContainerPath: "/dev/bus/usb",
+			},
+			{
+				HostPath:      dp.hddlHostPath,
+				ContainerPath: hddlContainerPath,
+			},
+		}
+		devTree.AddDevice(daemonDeviceType, "hddldaemon_service-0", dpapi.NewDeviceInfo(pluginapi.Healthy, nodes, mounts, nil))
 	}
 
 	return devTree, nil
@@ -154,8 +191,13 @@ func (dp *devicePlugin) scan() (dpapi.DeviceTree, error) {
 
 func main() {
 	var sharedDevNum int
+	var autobootStartupDelay string
+	var hddlHostPath string
 
 	flag.IntVar(&sharedDevNum, "shared-dev-num", 1, "number of containers sharing the same VPU device")
+	flag.StringVar(&autobootStartupDelay, "autoboot-startup-delay", "1s", "startup delay to wait autoboot device reset")
+	// the deployment can set this to any path on the host.
+	flag.StringVar(&hddlHostPath, "hddl-host-path", hddlContainerPath, "")
 
 	flag.Parse()
 
@@ -169,6 +211,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	delay, err := time.ParseDuration(autobootStartupDelay)
+	if err != nil {
+		fmt.Println("error")
+		os.Exit(1)
+	}
+	time.Sleep(delay)
 	fmt.Println("VPU device plugin started")
 
 	// add lsusb here
@@ -176,7 +224,7 @@ func main() {
 	defer ctx.Close()
 	ctx.Debug(*isdebug)
 
-	plugin := newDevicePlugin(ctx, vendorID, productIDs, sharedDevNum)
+	plugin := newDevicePlugin(ctx, vendorID, productID, sharedDevNum, hddlHostPath)
 	manager := dpapi.NewManager(namespace, plugin)
 	manager.Run()
 }
