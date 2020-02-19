@@ -1,4 +1,4 @@
-module github.com/intel/intel-device-plugins-for-kubernetes
+module github.com/mythi/intel-device-plugins-for-kubernetes
 
 go 1.13
 
@@ -24,6 +24,7 @@ require (
 )
 
 replace (
+	github.com/intel/intel-device-plugins-for-kubernetes => github.com/mythi/intel-device-plugins-for-kubernetes v0.0.0-20200219130200-2ab383e8d651
 	k8s.io/api => k8s.io/api v0.17.3
 	k8s.io/api v0.0.0 => k8s.io/api v0.17.3
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.17.3
