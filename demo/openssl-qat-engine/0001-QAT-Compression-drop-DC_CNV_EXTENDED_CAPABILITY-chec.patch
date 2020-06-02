@@ -1,0 +1,49 @@
+From 38237340fe1dd0181b59f0c24acbdd8d1c903c8d Mon Sep 17 00:00:00 2001
+From: Mikko Ylinen <mikko.ylinen@intel.com>
+Date: Wed, 3 Jun 2020 14:11:00 +0300
+Subject: [PATCH] QAT: Compression: drop DC_CNV_EXTENDED_CAPABILITY checks
+
+Signed-off-by: Mikko Ylinen <mikko.ylinen@intel.com>
+---
+ .../access_layer/src/common/compression/dc_datapath.c         | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/quickassist/lookaside/access_layer/src/common/compression/dc_datapath.c b/quickassist/lookaside/access_layer/src/common/compression/dc_datapath.c
+index 53e827e..c30cdbc 100644
+--- a/quickassist/lookaside/access_layer/src/common/compression/dc_datapath.c
++++ b/quickassist/lookaside/access_layer/src/common/compression/dc_datapath.c
+@@ -1510,6 +1510,7 @@ CpaStatus cpaDcCompressData(CpaInstanceHandle dcInstance,
+         return CPA_STATUS_UNSUPPORTED;
+     }
+ 
++#if 0
+     if (!(pService->generic_service_info.dcExtendedFeatures &
+           DC_CNV_EXTENDED_CAPABILITY))
+     {
+@@ -1525,6 +1526,7 @@ CpaStatus cpaDcCompressData(CpaInstanceHandle dcInstance,
+         return CPA_STATUS_UNSUPPORTED;
+     }
+ 
++#endif
+     return dcCompDecompData(pService,
+                             pSessionDesc,
+                             dcInstance,
+@@ -1650,6 +1652,7 @@ CpaStatus cpaDcCompressData2(CpaInstanceHandle dcInstance,
+         return CPA_STATUS_UNSUPPORTED;
+     }
+ 
++#if 0
+     if (!(pService->generic_service_info.dcExtendedFeatures &
+           DC_CNV_EXTENDED_CAPABILITY) &&
+         (CPA_TRUE == pOpData->compressAndVerify))
+@@ -1658,6 +1661,7 @@ CpaStatus cpaDcCompressData2(CpaInstanceHandle dcInstance,
+         return CPA_STATUS_UNSUPPORTED;
+     }
+ 
++#endif
+ #ifdef ICP_PARAM_CHECK
+     if (CPA_STATUS_SUCCESS != dcParamCheck(insHandle,
+                                            pSessionHandle,
+-- 
+2.20.1
+

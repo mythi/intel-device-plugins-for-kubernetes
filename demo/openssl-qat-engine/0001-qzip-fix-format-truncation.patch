@@ -1,0 +1,42 @@
+From e0941614f69217b205effbdc8d0ec46fbb2b28ec Mon Sep 17 00:00:00 2001
+From: Mikko Ylinen <mikko.ylinen@intel.com>
+Date: Tue, 2 Jun 2020 04:58:56 +0000
+Subject: [PATCH] qzip: fix format-truncation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+GCC 10 turns on -Werror=format-truncation= and errors on
+snprintf(path, MAX_PATH_LEN, "%s/%s", dirpath, file):
+
+error: ‘%s’ directive output may be truncated writing up
+to 1023 bytes into a region of size between 0 and 1023
+
+The if () misses "/" when counting the max path len so truncation
+may happen.
+
+Signed-off-by: Mikko Ylinen <mikko.ylinen@intel.com>
+---
+ utils/qzip.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/utils/qzip.c b/utils/qzip.c
+index 853b073..fdd06d3 100644
+--- a/utils/qzip.c
++++ b/utils/qzip.c
+@@ -470,11 +470,7 @@ int makeOutName(const char *in_name, const char *out_name,
+  * parent directory. */
+ void mkPath(char *path, const char *dirpath, char *file)
+ {
+-    size_t len;
+-
+-    len = strlen(dirpath);
+-
+-    if (len < MAX_PATH_LEN && strlen(file) < MAX_PATH_LEN - len) {
++    if (strlen(dirpath) + strlen(file) + 1 < MAX_PATH_LEN) {
+         snprintf(path, MAX_PATH_LEN, "%s/%s", dirpath, file);
+     } else {
+         assert(0);
+-- 
+2.20.1
+
