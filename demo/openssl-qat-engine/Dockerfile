@@ -6,11 +6,13 @@ ARG QAT_DRIVER_RELEASE="qat1.7.l.4.10.0-00014"
 ARG QAT_ENGINE_VERSION="v0.5.46"
 ARG IPSEC_MB_VERSION="v0.54"
 ARG IPP_CRYPTO_VERSION="ippcp_2020u2"
+ARG HAPROXY22_VERSION="v2.2.2"
 
-RUN swupd bundle-add --skip-diskspace-check devpkg-systemd devpkg-openssl c-basic wget git && \
+RUN swupd bundle-add --skip-diskspace-check devpkg-systemd devpkg-openssl devpkg-pcre c-basic wget git && \
     git clone -b $QAT_ENGINE_VERSION https://github.com/intel/QAT_Engine && \
     git clone -b $IPP_CRYPTO_VERSION https://github.com/intel/ipp-crypto && \
     git clone -b $IPSEC_MB_VERSION https://github.com/intel/intel-ipsec-mb && \
+    git clone -b $HAPROXY22_VERSION http://git.haproxy.org/git/haproxy-2.2.git/ && \
     wget https://01.org/sites/default/files/downloads/$QAT_DRIVER_RELEASE.tar.gz && \
     tar xf *.tar.gz
 
@@ -53,14 +55,25 @@ RUN cd /QAT_Engine && \
     --enable-openssl_install_build_arch_path && \
     make && make install
 
+RUN cd /haproxy-2.2 && \
+    make TARGET=linux-glibc \
+    USE_OPENSSL=1 \
+    USE_ZLIB=1 \
+    USE_PCRE=1 \
+    USE_SYSTEMD=1 && \
+    make install
+
 FROM $FINAL_BASE_IMAGE
 
 COPY --from=builder /usr/lib/libqat_s.so /usr/lib/
 COPY --from=builder /usr/lib/libusdm_drv_s.so /usr/lib/
 COPY --from=builder /usr/lib64/libIPSec_MB.so.0 /usr/lib64/
+COPY --from=builder /usr/lib64/libpcreposix.so.0 /usr/lib64/
+COPY --from=builder /usr/lib64/libpcreposix.so.0.0.7 /usr/lib64/
 COPY --from=builder /usr/bin/adf_ctl /usr/bin
 COPY --from=builder /usr/bin/vfy_ifma_cp_rsa_mb /usr/bin
 COPY --from=builder /usr/bin/vfy_ifma_rsa_mb /usr/bin
+COPY --from=builder /usr/local/sbin/haproxy /usr/bin/haproxy222
 COPY --from=builder /usr/lib64/engines-1.1/avx512.so /usr/lib64/engines-1.1/avx512.so
 COPY --from=builder /usr/lib64/engines-1.1/qat.so /usr/lib64/engines-1.1/qat.so
 COPY --from=builder /LICENSE.GPL /usr/share/package-licenses/libqat/LICENSE.GPL
