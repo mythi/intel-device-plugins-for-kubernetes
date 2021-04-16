@@ -133,40 +133,40 @@ func TestScan(t *testing.T) {
 		for _, shares := range tc.shares {
 			name := fmt.Sprintf("%s-share%d", tc.name, shares)
 			t.Run(name, func(t *testing.T) {
-			for _, devfsdir := range tc.devfsdirs {
-				if err := os.MkdirAll(path.Join(devfs, devfsdir), 0750); err != nil {
-					t.Fatalf("Failed to create fake device directory: %+v", err)
+				for _, devfsdir := range tc.devfsdirs {
+					if err := os.MkdirAll(path.Join(devfs, devfsdir), 0750); err != nil {
+						t.Fatalf("Failed to create fake device directory: %+v", err)
+					}
 				}
-			}
-			for _, sysfsdir := range tc.sysfsdirs {
-				if err := os.MkdirAll(path.Join(sysfs, sysfsdir), 0750); err != nil {
-					t.Fatalf("Failed to create fake device directory: %+v", err)
+				for _, sysfsdir := range tc.sysfsdirs {
+					if err := os.MkdirAll(path.Join(sysfs, sysfsdir), 0750); err != nil {
+						t.Fatalf("Failed to create fake device directory: %+v", err)
+					}
 				}
-			}
-			for filename, body := range tc.sysfsfiles {
-				if err := ioutil.WriteFile(path.Join(sysfs, filename), body, 0600); err != nil {
-					t.Fatalf("Failed to create fake vendor file: %+v", err)
+				for filename, body := range tc.sysfsfiles {
+					if err := ioutil.WriteFile(path.Join(sysfs, filename), body, 0600); err != nil {
+						t.Fatalf("Failed to create fake vendor file: %+v", err)
+					}
 				}
-			}
 
-			plugin := newDevicePlugin(sysfs, devfs, shares)
+				plugin := newDevicePlugin(sysfs, devfs, shares)
 
-			notifier := &mockNotifier{
-				scanDone: plugin.scanDone,
-			}
+				notifier := &mockNotifier{
+					scanDone: plugin.scanDone,
+				}
 
-			err := plugin.Scan(notifier)
-			// Scans in GPU plugin never fail
-			if err != nil {
-				t.Errorf("unexpected error: %+v", err)
-			}
-			if shares*tc.expectedDevs != notifier.devCount {
-				t.Errorf("Expected %d, discovered %d devices",
-					tc.expectedDevs, notifier.devCount)
-			}
-			// remove dirs/files for next test
-			os.RemoveAll(sysfs)
-			os.RemoveAll(devfs)
+				err := plugin.Scan(notifier)
+				// Scans in GPU plugin never fail
+				if err != nil {
+					t.Errorf("unexpected error: %+v", err)
+				}
+				if shares*tc.expectedDevs != notifier.devCount {
+					t.Errorf("Expected %d, discovered %d devices",
+						tc.expectedDevs, notifier.devCount)
+				}
+				// remove dirs/files for next test
+				os.RemoveAll(sysfs)
+				os.RemoveAll(devfs)
 			})
 		}
 	}
