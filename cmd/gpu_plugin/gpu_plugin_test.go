@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -57,6 +58,7 @@ func TestScan(t *testing.T) {
 		sysfsdirs    []string
 		sysfsfiles   map[string][]byte
 		expectedDevs int
+		shares       []int
 	}{
 		{
 			name: "no sysfs mounted",
@@ -93,6 +95,7 @@ func TestScan(t *testing.T) {
 			},
 			devfsdirs:    []string{"card0"},
 			expectedDevs: 1,
+			shares:       []int{1, 2, 4},
 		},
 		{
 			name: "two devices",
@@ -106,6 +109,7 @@ func TestScan(t *testing.T) {
 			},
 			devfsdirs:    []string{"card0", "card1"},
 			expectedDevs: 2,
+			shares:       []int{1, 2, 4},
 		},
 		{
 			name:      "wrong vendor",
@@ -122,7 +126,13 @@ func TestScan(t *testing.T) {
 	}
 
 	for _, tc := range tcases {
-		t.Run(tc.name, func(t *testing.T) {
+		if len(tc.shares) == 0 {
+			// default share count is 1
+			tc.shares = []int{1}
+		}
+		for _, shares := range tc.shares {
+			name := fmt.Sprintf("%s-share%d", tc.name, shares)
+			t.Run(name, func(t *testing.T) {
 			for _, devfsdir := range tc.devfsdirs {
 				if err := os.MkdirAll(path.Join(devfs, devfsdir), 0750); err != nil {
 					t.Fatalf("Failed to create fake device directory: %+v", err)
@@ -139,7 +149,7 @@ func TestScan(t *testing.T) {
 				}
 			}
 
-			plugin := newDevicePlugin(sysfs, devfs, 1)
+			plugin := newDevicePlugin(sysfs, devfs, shares)
 
 			notifier := &mockNotifier{
 				scanDone: plugin.scanDone,
@@ -150,13 +160,14 @@ func TestScan(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error: %+v", err)
 			}
-			if tc.expectedDevs != notifier.devCount {
+			if shares*tc.expectedDevs != notifier.devCount {
 				t.Errorf("Expected %d, discovered %d devices",
 					tc.expectedDevs, notifier.devCount)
 			}
 			// remove dirs/files for next test
 			os.RemoveAll(sysfs)
 			os.RemoveAll(devfs)
-		})
+			})
+		}
 	}
 }
