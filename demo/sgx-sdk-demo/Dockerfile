@@ -43,6 +43,9 @@ RUN wget https://download.01.org/intel-sgx/sgx-linux/2.13/distro/ubuntu18.04-ser
 RUN git clone -b $DCAP_VERSION https://github.com/intel/SGXDataCenterAttestationPrimitives.git
 
 RUN cd sgxsdk/SampleCode/SampleEnclave \
+    && sed -i -e 's/0x1/0x6A/g' Enclave/Enclave.config.xml \
+    && sed -i -e '/sgx_destroy_enclave/d' App/App.cpp \
+    && sed -i -e 's:getchar:pause:g' App/App.cpp \
     && . /opt/intel/sgxsdk/environment \
     && make \
     && cd -
@@ -69,6 +72,7 @@ RUN echo "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bio
     libsgx-quote-ex \
     libsgx-dcap-ql \
     libsgx-dcap-default-qpl \
+    stress-ng \
  && mkdir -p /opt/intel/sgx-sample-app/ \
  && mkdir -p /opt/intel/sgx-quote-generation/
 
