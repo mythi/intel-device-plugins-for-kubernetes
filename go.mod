@@ -21,7 +21,7 @@ require (
 	k8s.io/kubelet v0.22.2
 	k8s.io/kubernetes v1.22.2
 	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
-	sigs.k8s.io/controller-runtime v0.10.0
+	sigs.k8s.io/controller-runtime v0.10.3
 	sigs.k8s.io/yaml v1.2.0
 )
 
@@ -84,7 +84,7 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/apiextensions-apiserver v0.22.1 // indirect
+	k8s.io/apiextensions-apiserver v0.22.2 // indirect
 	k8s.io/apiserver v0.22.2 // indirect
 	k8s.io/component-helpers v0.22.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20210527164424-3c818078ee3d // indirect
