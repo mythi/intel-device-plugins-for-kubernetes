@@ -1,0 +1,35 @@
+name: e2e
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  jobnames:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        runner: [fpga, gpu, qat, sgx, simics-gnr, simics-spr]
+        include:
+          - runner: fpga
+            target: e2e-fpga
+          - runner: gpu
+            target: e2e-gpu
+          - runner: qat
+            target: e2e-qat
+          - runner: sgx
+            target: e2e-sgx
+          - runner: simics-gnr
+            target: e2e-dlb e2e-dsa e2e-iaa
+          - runner: simics-spr
+            target: e2e-dlb e2e-dsa e2e-iaa e2e-qat4
+    steps:
+      - name: e2e environment
+        run: |
+          echo "runs-on: ${{ matrix.runner }}"
+          echo "make target: ${{ matrix.target }}"
