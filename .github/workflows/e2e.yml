@@ -56,7 +56,7 @@ jobs:
             images: intel-qat-plugin intel-qat-initcontainer crypto-perf
           - name: e2e-qat4
             runner: simics-spr
-            images: intel-qat-plugin intel-qat-initcontainer openssl-qat-engine
+            images: intel-qat-plugin intel-qat-initcontainer openssl-qat-engine crypto-perf
           - name: e2e-sgx
             runner: sgx
             images: intel-sgx-plugin intel-sgx-initcontainer intel-sgx-admissionwebhook
