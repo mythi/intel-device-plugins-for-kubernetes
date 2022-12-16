@@ -17,7 +17,7 @@ RUN wget -q https://git.dpdk.org/dpdk/snapshot/$DPDK_TARBALL \
     && echo "$DPDK_TARBALL_SHA256 $DPDK_TARBALL" | sha256sum -c - \
     && tar -xf $DPDK_TARBALL && rm $DPDK_TARBALL
 
-RUN cd dpdk-* && meson setup --prefix $(pwd)/installdir builddir
+RUN cd dpdk-* && meson setup -Dplatform=generic --prefix $(pwd)/installdir builddir
 RUN cd dpdk-* && ninja -C builddir install
 RUN cd dpdk-* && \
     install -D builddir/app/dpdk-test-crypto-perf /install_root/usr/bin/dpdk-test-crypto-perf && \
