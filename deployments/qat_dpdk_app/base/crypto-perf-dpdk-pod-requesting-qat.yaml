@@ -10,21 +10,17 @@ spec:
     command: [ "/bin/bash", "-c", "--" ]
     args: [ "while true; do sleep 300000; done;" ]
     volumeMounts:
-    - mountPath: /dev/hugepages
-      name: hugepage
     - mountPath: /var/run/dpdk
       name: dpdk-runtime
     resources:
       requests:
-        cpu: "3"
+        cpu: "1"
         memory: "128Mi"
-        qat.intel.com/generic: '4'
-        hugepages-2Mi: "128Mi"
+        qat.intel.com/cy: '1'
       limits:
-        cpu: "3"
+        cpu: "1"
         memory: "128Mi"
-        qat.intel.com/generic: '4'
-        hugepages-2Mi: "128Mi"
+        qat.intel.com/cy: '1'
     securityContext:
       readOnlyRootFilesystem: true
       allowPrivilegeEscalation: false
@@ -36,6 +32,3 @@ spec:
   - name: dpdk-runtime
     emptyDir:
       medium: Memory
-  - name: hugepage
-    emptyDir:
-      medium: HugePages
